@@ -1,42 +1,58 @@
 {% extends "base.html" %}
+{% block title %}Audit Logs - SecureVault{% endblock %}
 {% block content %}
-<h2 class="mb-4"><i class="bi bi-journal-text"></i> Access Logs</h2>
-<div class="card p-3">
+<h2 class="page-title"><i class="bi bi-journal-text"></i> Audit Logs</h2>
+<p class="page-subtitle mb-4">HMAC-SHA256 tamper-proof activity log</p>
+
+<div class="glass-card">
     {% if logs %}
-    <div class="table-responsive">
-    <table class="table table-striped table-sm">
-        <thead>
-            <tr><th>Time</th><th>File</th><th>User</th><th>Action</th><th>Status</th><th>IP</th><th>HMAC</th></tr>
-        </thead>
-        <tbody>
-        {% for item in logs %}
-        <tr>
-            <td><small>{{ item.row.timestamp }}</small></td>
-            <td>{{ item.row.original_name }}</td>
-            <td>{{ item.row.username }}</td>
-            <td><span class="badge bg-secondary">{{ item.row.action }}</span></td>
-            <td>
-                {% if 'success' in item.row.status %}
-                    <span class="badge bg-success">{{ item.row.status }}</span>
-                {% else %}
-                    <span class="badge bg-danger">{{ item.row.status }}</span>
-                {% endif %}
-            </td>
-            <td><small class="text-muted">{{ item.row.ip_address }}</small></td>
-            <td>
-                {% if item.hmac_valid %}
-                    <span class="badge bg-success"><i class="bi bi-shield-check"></i> Valid</span>
-                {% else %}
-                    <span class="badge bg-danger"><i class="bi bi-shield-x"></i> Tampered</span>
-                {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+    <div class="scroll-table">
+        <table class="table table-borderless mb-0">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Details</th>
+                    <th>HMAC</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in logs %}
+                <tr>
+                    <td class="mono">{{ item.row[0] }}</td>
+                    <td class="mono" style="font-size:0.8rem;">{{ item.row[1] }}</td>
+                    <td><span class="badge-cyber">{{ item.row[2] }}</span></td>
+                    <td>
+                        {% if 'upload' in item.row[3]|lower %}
+                            <span class="badge-cyber badge-green"><i class="bi bi-upload"></i> {{ item.row[3] }}</span>
+                        {% elif 'download' in item.row[3]|lower %}
+                            <span class="badge-cyber badge-purple"><i class="bi bi-download"></i> {{ item.row[3] }}</span>
+                        {% elif 'login' in item.row[3]|lower %}
+                            <span class="badge-cyber"><i class="bi bi-box-arrow-in-right"></i> {{ item.row[3] }}</span>
+                        {% else %}
+                            <span class="badge-cyber badge-orange">{{ item.row[3] }}</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:0.85rem;">{{ item.row[4] }}</td>
+                    <td>
+                        {% if item.hmac_valid %}
+                            <span class="badge-cyber badge-green"><i class="bi bi-shield-check"></i> Valid</span>
+                        {% else %}
+                            <span class="badge-cyber badge-red"><i class="bi bi-shield-x"></i> Tampered</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
     {% else %}
-    <p class="text-muted">No access logs yet.</p>
+    <div class="text-center py-4">
+        <i class="bi bi-journal-x" style="font-size:3rem;color:var(--text-secondary);opacity:0.5;"></i>
+        <p class="text-secondary mt-2">No audit logs yet</p>
+    </div>
     {% endif %}
 </div>
 {% endblock %}

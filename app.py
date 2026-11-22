@@ -47,6 +47,9 @@ EMAIL_ENABLED = bool(SMTP_SERVER and SMTP_USER and SMTP_PASS)
 ADMIN_USERNAME = "admin"
 ADMIN_DEFAULT_PASSWORD = "Admin@123"
 
+# Track active sessions - one login per user
+active_sessions = {}
+
 
 # ── Database ──────────────────────────────────────────────────────
 
@@ -92,6 +95,13 @@ def init_db():
             file_password_hash TEXT DEFAULT '',
             digital_signature TEXT DEFAULT '',
             expiry_time TIMESTAMP NOT NULL,
+            max_views INTEGER DEFAULT 0,
+            current_views INTEGER DEFAULT 0,
+            allow_download INTEGER DEFAULT 1,
+            max_downloads INTEGER DEFAULT 0,
+            current_downloads INTEGER DEFAULT 0,
+            self_destruct INTEGER DEFAULT 0,
+            is_revoked INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (owner_id) REFERENCES users(id),
             FOREIGN KEY (receiver_id) REFERENCES users(id)
@@ -131,6 +141,13 @@ def login_required(f):
     def wrapper(*args, **kwargs):
         if "user_id" not in session:
             flash("Please log in first.", "warning")
+            return redirect(url_for("login"))
+        # Check if this is still the active session
+        uid = session["user_id"]
+        token = session.get("session_token", "")
+        if uid in active_sessions and active_sessions[uid] != token:
+            session.clear()
+            flash("You have been logged out because your account was logged in from another location.", "warning")
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return wrapper
@@ -257,7 +274,8 @@ def register():
             (username, email, generate_password_hash(password), public_key, private_key),
         )
         db.commit()
-        flash("Registration successful! RSA-2048 key pair generated. Please log in.", "success")
+        rsa_obj = __import__("Crypto.PublicKey", fromlist=["RSA"]).RSA.import_key(public_key)
+        flash(f"Registration successful! RSA-{rsa_obj.size_in_bits()} key pair generated. Modulus (hex): {format(rsa_obj.n, 'x')[:40]}... | Exponent: {rsa_obj.e}", "success")
         return redirect(url_for("login"))
     return render_template("register.html")
 
@@ -292,6 +310,9 @@ def login():
             session["user_id"] = user["id"]
             session["username"] = user["username"]
             session["is_admin"] = bool(user["is_admin"])
+            # Enforce single session per user
+            session["session_token"] = __import__("secrets").token_hex(16)
+            active_sessions[user["id"]] = session["session_token"]
             flash(f"Welcome, {username}!", "success")
             if user["is_admin"]:
                 return redirect(url_for("admin_dashboard"))
@@ -302,6 +323,9 @@ def login():
 
 @app.route("/logout")
 def logout():
+    uid = session.get("user_id")
+    if uid and uid in active_sessions:
+        del active_sessions[uid]
     session.clear()
     flash("Logged out.", "info")
     return redirect(url_for("login"))
@@ -408,6 +432,10 @@ def upload():
         receiver_id = request.form.get("receiver_id", type=int)
         expiry_hours = request.form.get("expiry_hours", type=int, default=24)
         file_password = request.form.get("file_password", "").strip()
+        max_views = request.form.get("max_views", type=int, default=0)
+        allow_download = 1 if request.form.get("allow_download") else 0
+        max_downloads = request.form.get("max_downloads", type=int, default=0)
+        self_destruct = 1 if request.form.get("self_destruct") else 0
 
         if not file or not receiver_id:
             flash("File and receiver are required.", "danger")
@@ -447,14 +475,16 @@ def upload():
             """INSERT INTO files
                (original_name, stored_name, file_hash, file_size, mime_type,
                 owner_id, receiver_id, encrypted_aes_key, file_password_hash,
-                digital_signature, expiry_time)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                digital_signature, expiry_time,
+                max_views, allow_download, max_downloads, self_destruct)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 original_name, stored_name, file_hash, file_size, mime_type,
                 session["user_id"], receiver_id,
                 encrypted_aes_key_b64, file_pw_hash,
                 digital_signature,
                 expiry_time.strftime("%Y-%m-%d %H:%M:%S"),
+                max_views, allow_download, max_downloads, self_destruct,
             ),
         )
         db.commit()
@@ -539,12 +569,30 @@ def download(file_id):
         flash("You are not authorized.", "danger")
         return redirect(url_for("dashboard"))
 
+    # Check if revoked
+    if f["is_revoked"]:
+        log_access(db, file_id, uid, "download", "denied - revoked")
+        flash("Access denied: file access has been revoked by the owner.", "danger")
+        return redirect(url_for("dashboard"))
+
     # Check expiry
     now = datetime.utcnow()
     expiry = datetime.strptime(f["expiry_time"], "%Y-%m-%d %H:%M:%S")
     if f["receiver_id"] == uid and now > expiry:
         log_access(db, file_id, uid, "download", "denied - expired")
         flash("Access denied: this file has expired.", "danger")
+        return redirect(url_for("dashboard"))
+
+    # Check if download is allowed
+    if f["receiver_id"] == uid and not f["allow_download"]:
+        log_access(db, file_id, uid, "download", "denied - downloads disabled")
+        flash("Download disabled. You can only preview this file.", "warning")
+        return redirect(url_for("dashboard"))
+
+    # Check download limit
+    if f["receiver_id"] == uid and f["max_downloads"] > 0 and f["current_downloads"] >= f["max_downloads"]:
+        log_access(db, file_id, uid, "download", "denied - download limit reached")
+        flash(f"Download limit reached ({f['max_downloads']} downloads).", "danger")
         return redirect(url_for("dashboard"))
 
     # Check file password
@@ -587,11 +635,25 @@ def download(file_id):
     owner = db.execute("SELECT rsa_public_key, username FROM users WHERE id = ?", (f["owner_id"],)).fetchone()
     sig_valid = verify_signature(f["file_hash"], f["digital_signature"], owner["rsa_public_key"])
 
+    # Increment download counter
+    if f["receiver_id"] == uid:
+        db.execute("UPDATE files SET current_downloads = current_downloads + 1 WHERE id = ?", (file_id,))
+        db.commit()
+
     log_access(db, file_id, uid, "download", "success")
     session.pop(f"file_access_{file_id}", None)
 
+    # Self-destruct: delete file after first download
+    if f["self_destruct"] and f["receiver_id"] == uid:
+        filepath = os.path.join(UPLOAD_FOLDER, f["stored_name"])
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        db.execute("DELETE FROM files WHERE id = ?", (file_id,))
+        db.commit()
+        flash("This file has self-destructed after download.", "info")
+
     if not sig_valid:
-        flash("Warning: Digital signature verification failed! File authenticity cannot be confirmed.", "warning")
+        flash("Warning: Digital signature verification failed!", "warning")
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix="_" + f["original_name"])
     tmp.write(decrypted)
@@ -616,10 +678,21 @@ def preview(file_id):
         flash("Unauthorized.", "danger")
         return redirect(url_for("dashboard"))
 
+    # Check if revoked
+    if f["is_revoked"]:
+        flash("Access denied: file access has been revoked.", "danger")
+        return redirect(url_for("dashboard"))
+
     now = datetime.utcnow()
     expiry = datetime.strptime(f["expiry_time"], "%Y-%m-%d %H:%M:%S")
     if f["receiver_id"] == uid and now > expiry:
         flash("Access denied: file expired.", "danger")
+        return redirect(url_for("dashboard"))
+
+    # Check view limit
+    if f["receiver_id"] == uid and f["max_views"] > 0 and f["current_views"] >= f["max_views"]:
+        log_access(db, file_id, uid, "preview", "denied - view limit reached")
+        flash(f"View limit reached ({f['max_views']} views).", "danger")
         return redirect(url_for("dashboard"))
 
     if f["file_password_hash"] and not session.get(f"file_access_{file_id}"):
@@ -651,8 +724,18 @@ def preview(file_id):
     owner = db.execute("SELECT rsa_public_key FROM users WHERE id = ?", (f["owner_id"],)).fetchone()
     sig_valid = verify_signature(f["file_hash"], f["digital_signature"], owner["rsa_public_key"])
 
+    # Increment view counter
+    if f["receiver_id"] == uid:
+        db.execute("UPDATE files SET current_views = current_views + 1 WHERE id = ?", (file_id,))
+        db.commit()
+
     log_access(db, file_id, uid, "preview", "success")
     session.pop(f"file_access_{file_id}", None)
+
+    # Self-destruct after first view
+    if f["self_destruct"] and f["receiver_id"] == uid:
+        db.execute("UPDATE files SET is_revoked = 1 WHERE id = ?", (file_id,))
+        db.commit()
 
     preview_data = {}
     mime = f["mime_type"]
@@ -707,6 +790,25 @@ def logs():
         log_list.append({"row": row, "hmac_valid": hmac_valid})
 
     return render_template("logs.html", logs=log_list)
+
+
+# ── Routes: Revoke Access ───────────────────────────────────────
+
+@app.route("/revoke/<int:file_id>", methods=["POST"])
+@login_required
+def revoke_access(file_id):
+    db = get_db()
+    f = db.execute("SELECT * FROM files WHERE id = ?", (file_id,)).fetchone()
+    if not f:
+        flash("File not found.", "danger")
+    elif f["owner_id"] != session["user_id"]:
+        flash("Only the file owner can revoke access.", "danger")
+    else:
+        db.execute("UPDATE files SET is_revoked = 1 WHERE id = ?", (file_id,))
+        db.commit()
+        log_access(db, file_id, session["user_id"], "revoke", "success")
+        flash(f"Access to '{f['original_name']}' has been revoked.", "success")
+    return redirect(url_for("dashboard"))
 
 
 # ══════════════════════════════════════════════════════════════════

@@ -1,71 +1,91 @@
 {% extends "base.html" %}
+{% block title %}Register - SecureVault{% endblock %}
 {% block content %}
-<div class="row justify-content-center mt-5">
-    <div class="col-md-5">
-        <div class="card p-4">
-            <h3 class="text-center mb-3"><i class="bi bi-person-plus-fill"></i> Register</h3>
+<div class="row justify-content-center mt-4">
+    <div class="col-md-6 col-lg-5">
+        <div class="text-center mb-4">
+            <div style="font-size:3rem;"><i class="bi bi-person-plus" style="background:linear-gradient(135deg,var(--accent-cyan),var(--accent-purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;"></i></div>
+            <h2 class="page-title">Create Account</h2>
+            <p class="page-subtitle">Your RSA-2048 key pair will be auto-generated</p>
+        </div>
+        <div class="glass-card">
             <form method="POST">
                 <div class="mb-3">
-                    <label class="form-label">Username</label>
-                    <input type="text" name="username" class="form-control" required>
+                    <label class="form-label"><i class="bi bi-person"></i> Username</label>
+                    <input type="text" class="form-control" name="username" required>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Email <small class="text-muted">(optional, for notifications)</small></label>
-                    <input type="email" name="email" class="form-control">
+                    <label class="form-label"><i class="bi bi-envelope"></i> Email (optional)</label>
+                    <input type="email" class="form-control" name="email">
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Password</label>
-                    <input type="password" name="password" id="password" class="form-control" required minlength="6"
-                           oninput="checkStrength()">
-                    <!-- Password Strength Meter -->
-                    <div class="mt-2">
-                        <div class="progress" style="height: 6px;">
-                            <div class="progress-bar" id="strength-bar" role="progressbar" style="width: 0%"></div>
+                    <label class="form-label"><i class="bi bi-lock"></i> Password</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="password" name="password" required>
+                        <button class="btn btn-outline-cyber" type="button" id="togglePw"><i class="bi bi-eye"></i></button>
+                    </div>
+                    <div id="str-box" class="mt-2" style="display:none;">
+                        <div class="progress" style="height:8px;border-radius:4px;background:rgba(255,255,255,0.05);">
+                            <div id="str-bar" class="progress-bar" style="width:0%;transition:all 0.4s;"></div>
                         </div>
-                        <small id="strength-text" class="text-muted"></small>
-                        <div id="strength-feedback" class="mt-1"></div>
+                        <div class="d-flex justify-content-between mt-1">
+                            <small id="str-label"></small>
+                            <small id="str-bits" class="mono"></small>
+                        </div>
+                        <div id="entropy-calc" class="glass-card mt-2 p-2" style="font-size:0.78rem;border-color:rgba(139,92,246,0.2);">
+                            <div class="fw-bold mb-1" style="color:var(--accent-purple);"><i class="bi bi-cpu"></i> Entropy Calculation</div>
+                            <div id="charset-items"></div>
+                            <div class="cyber-divider" style="margin:0.5rem 0;"></div>
+                            <div id="formula" class="mono" style="color:var(--accent-cyan);"></div>
+                        </div>
+                        <div id="tips" class="mt-1" style="font-size:0.8rem;"></div>
                     </div>
                 </div>
-                <div class="mb-2">
-                    <small class="text-muted">
-                        <i class="bi bi-key-fill"></i> An RSA-2048 key pair will be generated for your account.
-                    </small>
+                <div class="mb-3">
+                    <label class="form-label"><i class="bi bi-lock-fill"></i> Confirm Password</label>
+                    <input type="password" class="form-control" name="confirm_password" required>
                 </div>
-                <button class="btn btn-success w-100">Register</button>
+                <div class="glass-card p-2 mb-3" style="font-size:0.8rem;border-color:rgba(0,212,255,0.2);">
+                    <i class="bi bi-key" style="color:var(--accent-cyan);"></i>
+                    <span class="text-secondary">RSA-2048 key pair + AES-256 encryption will secure your files</span>
+                </div>
+                <button type="submit" class="btn btn-cyber w-100"><i class="bi bi-person-plus"></i> Register</button>
             </form>
-            <p class="text-center mt-3">
-                Already have an account? <a href="{{ url_for('login') }}">Login</a>
-            </p>
+            <div class="text-center mt-3">
+                <a href="/login" class="text-decoration-none" style="color:var(--accent-cyan);">Already have an account? <strong>Login</strong></a>
+            </div>
         </div>
     </div>
 </div>
-
+{% endblock %}
+{% block extra_js %}
 <script>
-function checkStrength() {
-    const pw = document.getElementById('password').value;
-    const bar = document.getElementById('strength-bar');
-    const text = document.getElementById('strength-text');
-    const feedback = document.getElementById('strength-feedback');
-
-    if (!pw) { bar.style.width = '0%'; text.textContent = ''; feedback.innerHTML = ''; return; }
-
-    fetch('/check_password_strength', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({password: pw})
-    })
-    .then(r => r.json())
-    .then(data => {
-        const colors = ['#e74c3c', '#e67e22', '#f1c40f', '#27ae60', '#2ecc71'];
-        const widths = [20, 40, 60, 80, 100];
-        bar.style.width = widths[data.score] + '%';
-        bar.style.background = colors[data.score];
-        text.textContent = data.label + ' (' + data.entropy + ' bits entropy)';
-        text.style.color = colors[data.score];
-        feedback.innerHTML = data.feedback.map(f =>
-            '<small class="text-muted d-block"><i class="bi bi-exclamation-circle"></i> ' + f + '</small>'
-        ).join('');
+document.getElementById('togglePw').onclick=function(){
+    const p=document.getElementById('password');
+    p.type=p.type==='password'?'text':'password';
+    this.innerHTML=p.type==='password'?'<i class="bi bi-eye"></i>':'<i class="bi bi-eye-slash"></i>';
+};
+document.getElementById('password').addEventListener('input',function(){
+    const box=document.getElementById('str-box'),bar=document.getElementById('str-bar');
+    if(!this.value){box.style.display='none';return;}
+    box.style.display='block';
+    fetch('/check_password_strength',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:this.value})})
+    .then(r=>r.json()).then(d=>{
+        let pct=Math.min(d.entropy/80*100,100);
+        bar.style.width=pct+'%';
+        if(d.entropy<25){bar.style.background='var(--accent-red)';document.getElementById('str-label').innerHTML='<span style="color:var(--accent-red)">Weak</span>';}
+        else if(d.entropy<50){bar.style.background='var(--accent-orange)';document.getElementById('str-label').innerHTML='<span style="color:var(--accent-orange)">Fair</span>';}
+        else if(d.entropy<70){bar.style.background='linear-gradient(90deg,var(--accent-cyan),var(--accent-purple))';document.getElementById('str-label').innerHTML='<span style="color:var(--accent-cyan)">Strong</span>';}
+        else{bar.style.background='var(--accent-green)';document.getElementById('str-label').innerHTML='<span style="color:var(--accent-green)">Very Strong</span>';}
+        document.getElementById('str-bits').textContent=d.entropy.toFixed(1)+' bits';
+        let h='';
+        if(d.breakdown){d.breakdown.forEach(b=>{h+='<div><i class="bi bi-check-circle-fill" style="color:var(--accent-green)"></i> '+b.name+' <span class="text-secondary">+'+b.pool+' symbols</span></div>';});
+        h+='<div class="mt-1">Pool: <strong>'+d.charset_size+'</strong> | Length: <strong>'+d.length+'</strong></div>';}
+        document.getElementById('charset-items').innerHTML=h;
+        document.getElementById('formula').textContent=d.entropy_calc||'';
+        let t='';if(d.suggestions){d.suggestions.forEach(s=>{t+='<div style="color:var(--accent-orange)"><i class="bi bi-exclamation-triangle"></i> '+s+'</div>';});}
+        document.getElementById('tips').innerHTML=t;
     });
-}
+});
 </script>
 {% endblock %}
