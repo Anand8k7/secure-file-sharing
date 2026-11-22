@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-key-fill"></i> My Cryptographic Keys</h2>
+
+<div class="row">
+    <div class="col-md-6 mb-4">
+        <div class="card p-4">
+            <h5><i class="bi bi-lock-fill text-primary"></i> RSA-2048 Public Key</h5>
+            <p class="text-muted">Other users encrypt the AES file key using your public key. Only your private key can decrypt it.</p>
+            <textarea class="form-control font-monospace" rows="8" readonly style="font-size: 0.75rem;">{{ user.rsa_public_key }}</textarea>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card p-4">
+            <h5><i class="bi bi-key-fill text-danger"></i> RSA-2048 Private Key</h5>
+            <p class="text-muted">Your private key decrypts file keys and signs files. <strong>Never share this!</strong></p>
+            <div class="position-relative">
+                <textarea class="form-control font-monospace" rows="8" readonly
+                          style="font-size: 0.75rem; filter: blur(5px);"
+                          id="private-key">{{ user.rsa_private_key }}</textarea>
+                <button class="btn btn-sm btn-outline-danger position-absolute top-50 start-50 translate-middle"
+                        onclick="this.previousElementSibling.style.filter = this.previousElementSibling.style.filter ? '' : 'blur(5px)'">
+                    <i class="bi bi-eye"></i> Toggle Visibility
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card p-4 mb-4">
+    <h5><i class="bi bi-diagram-3-fill"></i> How Your Keys Are Used</h5>
+    <div class="row text-center mt-3">
+        <div class="col-md-3">
+            <div class="p-3 bg-light rounded">
+                <i class="bi bi-file-earmark-plus fs-1 text-primary"></i>
+                <h6 class="mt-2">1. Upload</h6>
+                <small>File encrypted with random AES-256 key</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="p-3 bg-light rounded">
+                <i class="bi bi-lock fs-1 text-success"></i>
+                <h6 class="mt-2">2. Key Wrapping</h6>
+                <small>AES key encrypted with receiver's RSA public key</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="p-3 bg-light rounded">
+                <i class="bi bi-pen fs-1 text-warning"></i>
+                <h6 class="mt-2">3. Signing</h6>
+                <small>Owner signs file hash with RSA-PSS private key</small>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="p-3 bg-light rounded">
+                <i class="bi bi-key fs-1 text-danger"></i>
+                <h6 class="mt-2">4. Download</h6>
+                <small>Receiver's private key unwraps AES key to decrypt</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card p-4">
+    <h5><i class="bi bi-shield-fill-check"></i> Security Summary</h5>
+    <table class="table table-sm mt-2">
+        <tr><td><strong>File Encryption</strong></td><td>AES-256-CBC (symmetric)</td></tr>
+        <tr><td><strong>Key Wrapping</strong></td><td>RSA-2048 OAEP with SHA-256</td></tr>
+        <tr><td><strong>Digital Signature</strong></td><td>RSA-PSS with SHA-256</td></tr>
+        <tr><td><strong>File Integrity</strong></td><td>SHA-256 hash verification</td></tr>
+        <tr><td><strong>Password Hashing</strong></td><td>PBKDF2-SHA256 (Werkzeug)</td></tr>
+        <tr><td><strong>Log Integrity</strong></td><td>HMAC-SHA256 tamper detection</td></tr>
+        <tr><td><strong>2FA</strong></td><td>TOTP (RFC 6238) — {{ "Enabled" if user.totp_enabled else "Disabled" }}</td></tr>
+    </table>
+</div>
+
+<a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary mt-3"><i class="bi bi-arrow-left"></i> Back to Dashboard</a>
+{% endblock %}

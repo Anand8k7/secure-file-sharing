@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-speedometer2"></i> Dashboard</h2>
+
+<!-- Stats Row -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <h2 class="text-primary">{{ total_shared }}</h2>
+            <p>Files Shared</p>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <h2 class="text-success">{{ active_shared }}</h2>
+            <p>Active Shares</p>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card stat-card">
+            <h2 class="text-info">{{ total_received }}</h2>
+            <p>Files Received</p>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Files I Shared -->
+    <div class="col-md-6 mb-4">
+        <div class="card p-3">
+            <h5><i class="bi bi-upload"></i> Files I Shared</h5>
+            {% if shared %}
+            <div class="table-responsive">
+            <table class="table table-sm mt-2">
+                <thead><tr><th>File</th><th>To</th><th>Size</th><th>Expiry</th><th>Status</th></tr></thead>
+                <tbody>
+                {% for f in shared %}
+                <tr>
+                    <td>
+                        {{ f.original_name }}
+                        {% if f.file_password_hash %}<i class="bi bi-lock-fill text-warning" title="Password protected"></i>{% endif %}
+                    </td>
+                    <td>{{ f.receiver_name }}</td>
+                    <td>{{ f.file_size|filesize }}</td>
+                    <td><small>{{ f.expiry_time }}</small></td>
+                    <td>
+                        {% if f.expiry_time > now %}
+                            <span class="badge badge-active text-white">Active</span>
+                        {% else %}
+                            <span class="badge badge-expired text-white">Expired</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% else %}
+            <p class="text-muted mt-2">No files shared yet. <a href="{{ url_for('upload') }}">Share one now!</a></p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Files Shared With Me -->
+    <div class="col-md-6 mb-4">
+        <div class="card p-3">
+            <h5><i class="bi bi-download"></i> Files Shared With Me</h5>
+            {% if received %}
+            <div class="table-responsive">
+            <table class="table table-sm mt-2">
+                <thead><tr><th>File</th><th>From</th><th>Size</th><th>Expiry</th><th>Actions</th></tr></thead>
+                <tbody>
+                {% for f in received %}
+                <tr>
+                    <td>
+                        {{ f.original_name }}
+                        {% if f.file_password_hash %}<i class="bi bi-lock-fill text-warning" title="Password protected"></i>{% endif %}
+                    </td>
+                    <td>{{ f.owner_name }}</td>
+                    <td>{{ f.file_size|filesize }}</td>
+                    <td><small>{{ f.expiry_time }}</small></td>
+                    <td>
+                        {% if f.expiry_time > now %}
+                            <a href="{{ url_for('download', file_id=f.id) }}" class="btn btn-sm btn-primary" title="Download">
+                                <i class="bi bi-download"></i>
+                            </a>
+                            {% if f.mime_type and (f.mime_type.startswith('image/') or f.mime_type.startswith('text/') or f.mime_type == 'application/pdf') %}
+                            <a href="{{ url_for('preview', file_id=f.id) }}" class="btn btn-sm btn-preview" title="Preview">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                            {% endif %}
+                        {% else %}
+                            <span class="badge badge-expired text-white">Expired</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            </div>
+            {% else %}
+            <p class="text-muted mt-2">No files received yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-gear-fill"></i> Admin Panel</h2>
+
+<!-- Stats -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <h2 class="text-primary">{{ total_users }}</h2>
+            <p>Total Users</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <h2 class="text-success">{{ total_files }}</h2>
+            <p>Total Files</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <h2 class="text-warning">{{ active_files }}</h2>
+            <p>Active Shares</p>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <h2 class="text-info" style="font-size:1.8rem">{{ total_size }}</h2>
+            <p>Storage Used</p>
+        </div>
+    </div>
+</div>
+
+<!-- Users -->
+<div class="card p-3 mb-4">
+    <h5><i class="bi bi-people-fill"></i> All Users</h5>
+    <div class="table-responsive">
+    <table class="table table-sm mt-2">
+        <thead><tr><th>ID</th><th>Username</th><th>Email</th><th>Role</th><th>2FA</th><th>Joined</th><th>Action</th></tr></thead>
+        <tbody>
+        {% for u in users %}
+        <tr>
+            <td>{{ u.id }}</td>
+            <td>{{ u.username }}</td>
+            <td>{{ u.email or '-' }}</td>
+            <td>
+                {% if u.is_admin %}<span class="badge bg-danger">Admin</span>
+                {% else %}<span class="badge bg-secondary">User</span>{% endif %}
+            </td>
+            <td>
+                {% if u.totp_enabled %}<span class="badge bg-success"><i class="bi bi-shield-lock"></i> On</span>
+                {% else %}<span class="badge bg-secondary">Off</span>{% endif %}
+            </td>
+            <td><small>{{ u.created_at }}</small></td>
+            <td>
+                {% if not u.is_admin %}
+                <form method="POST" action="{{ url_for('admin_delete_user', user_id=u.id) }}" style="display:inline"
+                      onsubmit="return confirm('Delete user {{ u.username }}? This removes all their files too.')">
+                    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                </form>
+                {% else %}
+                <span class="text-muted">-</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<!-- Files -->
+<div class="card p-3 mb-4">
+    <h5><i class="bi bi-file-earmark-lock-fill"></i> All Files</h5>
+    <div class="table-responsive">
+    <table class="table table-sm mt-2">
+        <thead><tr><th>File</th><th>Owner</th><th>Receiver</th><th>Size</th><th>Expiry</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody>
+        {% for f in files %}
+        <tr>
+            <td>
+                {{ f.original_name }}
+                {% if f.file_password_hash %}<i class="bi bi-lock-fill text-warning"></i>{% endif %}
+            </td>
+            <td>{{ f.owner_name }}</td>
+            <td>{{ f.receiver_name }}</td>
+            <td>{{ f.file_size|filesize }}</td>
+            <td><small>{{ f.expiry_time }}</small></td>
+            <td>
+                {% if f.expiry_time > now %}
+                    <span class="badge badge-active text-white">Active</span>
+                {% else %}
+                    <span class="badge badge-expired text-white">Expired</span>
+                {% endif %}
+            </td>
+            <td>
+                <form method="POST" action="{{ url_for('admin_delete_file', file_id=f.id) }}" style="display:inline"
+                      onsubmit="return confirm('Delete this file?')">
+                    <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<!-- Recent Logs -->
+<div class="card p-3 mb-4">
+    <h5><i class="bi bi-journal-text"></i> Recent Access Logs (Last 50)</h5>
+    <div class="table-responsive">
+    <table class="table table-sm table-striped mt-2">
+        <thead><tr><th>Time</th><th>File</th><th>User</th><th>Action</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for log in logs %}
+        <tr>
+            <td><small>{{ log.timestamp }}</small></td>
+            <td>{{ log.original_name }}</td>
+            <td>{{ log.username }}</td>
+            <td>{{ log.action }}</td>
+            <td>
+                {% if 'success' in log.status %}
+                    <span class="badge bg-success">{{ log.status }}</span>
+                {% else %}
+                    <span class="badge bg-danger">{{ log.status }}</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+{% endblock %}

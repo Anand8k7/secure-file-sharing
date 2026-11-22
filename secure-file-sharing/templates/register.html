@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-5">
+        <div class="card p-4">
+            <h3 class="text-center mb-3"><i class="bi bi-person-plus-fill"></i> Register</h3>
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="form-label">Username</label>
+                    <input type="text" name="username" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Email <small class="text-muted">(optional, for notifications)</small></label>
+                    <input type="email" name="email" class="form-control">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Password</label>
+                    <input type="password" name="password" id="password" class="form-control" required minlength="6"
+                           oninput="checkStrength()">
+                    <!-- Password Strength Meter -->
+                    <div class="mt-2">
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar" id="strength-bar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                        <small id="strength-text" class="text-muted"></small>
+                        <div id="strength-feedback" class="mt-1"></div>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <small class="text-muted">
+                        <i class="bi bi-key-fill"></i> An RSA-2048 key pair will be generated for your account.
+                    </small>
+                </div>
+                <button class="btn btn-success w-100">Register</button>
+            </form>
+            <p class="text-center mt-3">
+                Already have an account? <a href="{{ url_for('login') }}">Login</a>
+            </p>
+        </div>
+    </div>
+</div>
+
+<script>
+function checkStrength() {
+    const pw = document.getElementById('password').value;
+    const bar = document.getElementById('strength-bar');
+    const text = document.getElementById('strength-text');
+    const feedback = document.getElementById('strength-feedback');
+
+    if (!pw) { bar.style.width = '0%'; text.textContent = ''; feedback.innerHTML = ''; return; }
+
+    fetch('/check_password_strength', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({password: pw})
+    })
+    .then(r => r.json())
+    .then(data => {
+        const colors = ['#e74c3c', '#e67e22', '#f1c40f', '#27ae60', '#2ecc71'];
+        const widths = [20, 40, 60, 80, 100];
+        bar.style.width = widths[data.score] + '%';
+        bar.style.background = colors[data.score];
+        text.textContent = data.label + ' (' + data.entropy + ' bits entropy)';
+        text.style.color = colors[data.score];
+        feedback.innerHTML = data.feedback.map(f =>
+            '<small class="text-muted d-block"><i class="bi bi-exclamation-circle"></i> ' + f + '</small>'
+        ).join('');
+    });
+}
+</script>
+{% endblock %}

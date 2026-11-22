@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card p-4">
+            <h3 class="mb-3"><i class="bi bi-shield-check"></i> Two-Factor Authentication (TOTP)</h3>
+
+            {% if user.totp_enabled %}
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle-fill"></i> 2FA is <strong>enabled</strong> on your account.
+            </div>
+            <form method="POST">
+                <input type="hidden" name="action" value="disable">
+                <button class="btn btn-outline-danger w-100">Disable 2FA</button>
+            </form>
+
+            {% else %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle"></i> Scan the QR code with <strong>Google Authenticator</strong> or any TOTP app.
+            </div>
+
+            <!-- QR Code using a chart API -->
+            <div class="text-center mb-3">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={{ totp_uri | urlencode }}"
+                     alt="QR Code" class="rounded" width="200" height="200">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Or enter this secret manually:</label>
+                <div class="input-group">
+                    <input type="text" class="form-control font-monospace" value="{{ totp_secret }}" readonly id="secret-key">
+                    <button class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText(document.getElementById('secret-key').value)">
+                        <i class="bi bi-clipboard"></i>
+                    </button>
+                </div>
+            </div>
+
+            <form method="POST">
+                <input type="hidden" name="action" value="enable">
+                <input type="hidden" name="totp_secret" value="{{ totp_secret }}">
+                <div class="mb-3">
+                    <label class="form-label">Enter the 6-digit code from your app:</label>
+                    <input type="text" name="totp_code" class="form-control text-center fs-4 font-monospace"
+                           maxlength="6" pattern="\d{6}" required placeholder="000000" autofocus>
+                </div>
+                <button class="btn btn-success w-100">Verify & Enable 2FA</button>
+            </form>
+            {% endif %}
+
+            <a href="{{ url_for('dashboard') }}" class="btn btn-link w-100 mt-2">Back to Dashboard</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
